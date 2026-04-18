@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>JSON 在线工具</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
 <style>
   :root {
     --bg: #0d0f12;
@@ -565,7 +566,9 @@
     <button onclick="switchTab('compress')">压缩</button>
     <button onclick="switchTab('validate')">校验</button>
     <button onclick="switchTab('convert')">转义</button>
-    <button onclick="switchTab('xslt'); showXsltPanel()">XSLT</button>
+    <button onclick="switchTab('xslt')">XSLT</button>
+    <button onclick="switchTab('diff')">比对</button>
+    <button onclick="switchTab('base64')">Base64</button>
   </nav>
 </header>
 
@@ -758,6 +761,52 @@
   </div>
 </div>
 
+<!-- DIFF PANEL -->
+<div id="diffPanel" style="display:none; flex:1; flex-direction:column; overflow:hidden; position:relative; z-index:1;">
+  <div style="display:flex; flex:1; min-height:0; overflow:hidden;">
+    <div class="panel" style="flex:1;">
+      <div class="panel-header"><span>左侧内容 (原始)</span></div>
+      <textarea id="diffLeft" placeholder="粘贴左侧内容..." oninput="updateCurrentTabData()"></textarea>
+    </div>
+    <div style="width:4px; background:var(--border); flex-shrink:0;"></div>
+    <div class="panel" style="flex:1;">
+      <div class="panel-header"><span>右侧内容 (对比)</span></div>
+      <textarea id="diffRight" placeholder="粘贴右侧内容..." oninput="updateCurrentTabData()"></textarea>
+    </div>
+  </div>
+  <div style="border-top:1px solid var(--border);">
+    <div class="toolbar" style="border-bottom:none; padding:8px 16px; gap:8px;">
+      <button class="btn btn-primary" onclick="runDiff()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+        执行比对
+      </button>
+      <button class="btn btn-secondary" onclick="clearDiff()">清空</button>
+    </div>
+    <div id="diffOutput" style="height:250px; overflow:auto; background:var(--bg); padding:16px 20px; font-family:'JetBrains Mono',monospace; font-size:13px; white-space:pre-wrap; line-height:1.75;">
+      比对结果将显示在这里...
+    </div>
+  </div>
+</div>
+
+<!-- BASE64 PANEL -->
+<div id="base64Panel" style="display:none; flex:1; flex-direction:column; overflow:hidden; position:relative; z-index:1;">
+  <div class="panel" style="flex:1;">
+    <div class="panel-header"><span>输入内容 (明文或 Base64)</span></div>
+    <textarea id="base64Input" placeholder="在此输入需要编码或解码的内容..." oninput="updateCurrentTabData()"></textarea>
+  </div>
+  <div style="border-top:1px solid var(--border);">
+    <div class="toolbar" style="border-bottom:none; padding:8px 16px; gap:8px;">
+      <button class="btn btn-primary" onclick="base64Encode()">Base64 编码</button>
+      <button class="btn btn-primary" onclick="base64Decode()">Base64 解码</button>
+      <button class="btn btn-secondary" onclick="copyBase64Result()">复制结果</button>
+      <button class="btn btn-secondary" onclick="clearBase64()">清空</button>
+    </div>
+    <div id="base64Output" style="height:250px; overflow:auto; background:var(--bg); padding:16px 20px; font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.75; color:var(--string); word-break: break-all;">
+      结果将显示在这里...
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast">✓ 已复制</div>
 
 <script>
@@ -784,6 +833,9 @@ function initTabs() {
       xsltSource: '',
       xsltTemplate: '',
       xsltMode: 'json',
+      diffLeft: '',
+      diffRight: '',
+      base64Input: '',
       activeFunction: 'format'
     };
     tabs = [initialTab];
@@ -826,6 +878,9 @@ function addNewTab() {
     xsltSource: '',
     xsltTemplate: '',
     xsltMode: 'json',
+    diffLeft: '',
+    diffRight: '',
+    base64Input: '',
     activeFunction: 'format'
   };
   tabs.push(newTab);
@@ -883,6 +938,9 @@ function updateCurrentTabData() {
     tab.xsltSource = document.getElementById('xsltSource').value;
     tab.xsltTemplate = document.getElementById('xsltTemplate').value;
     tab.xsltMode = xsltSourceMode;
+    tab.diffLeft = document.getElementById('diffLeft').value;
+    tab.diffRight = document.getElementById('diffRight').value;
+    tab.base64Input = document.getElementById('base64Input').value;
     tab.activeFunction = currentTab;
     saveTabs();
   }
@@ -894,16 +952,14 @@ function loadTabContent(id) {
     document.getElementById('jsonInput').value = tab.json || '';
     document.getElementById('xsltSource').value = tab.xsltSource || '';
     document.getElementById('xsltTemplate').value = tab.xsltTemplate || '';
+    document.getElementById('diffLeft').value = tab.diffLeft || '';
+    document.getElementById('diffRight').value = tab.diffRight || '';
+    document.getElementById('base64Input').value = tab.base64Input || '';
     setXsltSourceMode(tab.xsltMode || 'json');
     
     // 恢复功能切换状态
     if (tab.activeFunction) {
       switchTab(tab.activeFunction);
-      if (tab.activeFunction === 'xslt') {
-        showXsltPanel();
-      } else {
-        hideXsltPanel();
-      }
     }
 
     // 触发重新渲染和行号更新，但不清空内容
@@ -1282,20 +1338,145 @@ function switchView(view) {
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('nav button').forEach((b,i) => {
-    b.classList.toggle('active', ['format','compress','validate','convert','xslt'][i] === tab);
+    b.classList.toggle('active', ['format','compress','validate','convert','xslt','diff','base64'][i] === tab);
   });
+  
+  // 隐藏所有特定面板，显示主面板（如果需要）
+  hideAllPanels();
+  
+  if (tab === 'xslt') {
+    showXsltPanel();
+  } else if (tab === 'diff') {
+    showDiffPanel();
+  } else if (tab === 'base64') {
+    showBase64Panel();
+  } else {
+    document.getElementById('mainArea').style.display = 'flex';
+  }
+  
   updateCurrentTabData();
 }
 
+function hideAllPanels() {
+  document.getElementById('mainArea').style.display = 'none';
+  document.getElementById('xsltPanel').style.display = 'none';
+  document.getElementById('diffPanel').style.display = 'none';
+  document.getElementById('base64Panel').style.display = 'none';
+}
+
+function showXsltPanel() {
+  hideAllPanels();
+  document.getElementById('xsltPanel').style.display = 'flex';
+}
+
+function showDiffPanel() {
+  hideAllPanels();
+  document.getElementById('diffPanel').style.display = 'flex';
+}
+
+function showBase64Panel() {
+  hideAllPanels();
+  document.getElementById('base64Panel').style.display = 'flex';
+}
+
+// ──────────────────────────── DIFF LOGIC ────────────────────────────
+
+function runDiff() {
+  const left = document.getElementById('diffLeft').value;
+  const right = document.getElementById('diffRight').value;
+  const output = document.getElementById('diffOutput');
+  
+  if (!left && !right) {
+    output.innerHTML = '<span style="color:var(--text3)">请输入内容进行比对...</span>';
+    return;
+  }
+  
+  const diff = Diff.diffLines(left, right);
+  let html = '';
+  
+  diff.forEach((part) => {
+    const color = part.added ? 'diff-added' : part.removed ? 'diff-removed' : '';
+    const prefix = part.added ? '+ ' : part.removed ? '- ' : '  ';
+    const text = escapeHtml(part.value).split('\n').map(line => {
+      if (!line && part === diff[diff.length-1]) return '';
+      return `<div class="${color}">${prefix}${line}</div>`;
+    }).join('');
+    html += text;
+  });
+  
+  output.innerHTML = html || '<span style="color:var(--accent)">内容完全一致</span>';
+  updateCurrentTabData();
+}
+
+function clearDiff() {
+  document.getElementById('diffLeft').value = '';
+  document.getElementById('diffRight').value = '';
+  document.getElementById('diffOutput').innerHTML = '比对结果将显示在这里...';
+  updateCurrentTabData();
+  showToast('已清空比对内容');
+}
+
+// ──────────────────────────── BASE64 LOGIC ────────────────────────────
+
+function base64Encode() {
+  const input = document.getElementById('base64Input').value;
+  const output = document.getElementById('base64Output');
+  if (!input) return;
+  
+  try {
+    const encoded = btoa(unescape(encodeURIComponent(input)));
+    output.innerText = encoded;
+    window._base64Result = encoded;
+    showToast('编码成功');
+  } catch (e) {
+    output.innerHTML = `<span style="color:var(--error)">编码失败: ${e.message}</span>`;
+  }
+  updateCurrentTabData();
+}
+
+function base64Decode() {
+  const input = document.getElementById('base64Input').value.trim();
+  const output = document.getElementById('base64Output');
+  if (!input) return;
+  
+  try {
+    const decoded = decodeURIComponent(escape(atob(input)));
+    output.innerText = decoded;
+    window._base64Result = decoded;
+    showToast('解码成功');
+  } catch (e) {
+    output.innerHTML = `<span style="color:var(--error)">解码失败: 请确保输入是有效的 Base64 字符串</span>`;
+  }
+  updateCurrentTabData();
+}
+
+function copyBase64Result() {
+  const text = document.getElementById('base64Output').innerText;
+  if (!text || text === '结果将显示在这里...') {
+    showToast('暂无结果');
+    return;
+  }
+  copyToClipboard(text, '已复制结果');
+}
+
+function clearBase64() {
+  document.getElementById('base64Input').value = '';
+  document.getElementById('base64Output').innerText = '结果将显示在这里...';
+  updateCurrentTabData();
+  showToast('已清空');
+}
+
+// ──────────────────────────── ACTIONS ────────────────────────────
+
 function copyOutput() {
   if (!outputText) return;
-  navigator.clipboard.writeText(outputText).then(() => showToast('已复制输出'));
+  copyToClipboard(outputText, '已复制输出');
 }
 
 function copyInput() {
   const v = document.getElementById('jsonInput').value;
   if (!v) return;
-  navigator.clipboard.writeText(v).then(() => showToast('已复制'));
+  copyToClipboard(v, '已复制');
 }
 
 async function pasteFromClipboard() {
@@ -1436,19 +1617,7 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') { e.preventDefault(); copyOutput(); }
 });
 
-// ──────────────────────────── XSLT ────────────────────────────
-
-let xsltSourceMode = 'json'; // 'json' | 'xml'
-
-function showXsltPanel() {
-  document.getElementById('mainArea').style.display = 'none';
-  document.getElementById('xsltPanel').style.display = 'flex';
-}
-
-function hideXsltPanel() {
-  document.getElementById('mainArea').style.display = 'flex';
-  document.getElementById('xsltPanel').style.display = 'none';
-}
+// ──────────────────────────── ACTIONS ────────────────────────────
 
 function setXsltSourceMode(mode) {
   xsltSourceMode = mode;
