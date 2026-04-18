@@ -798,6 +798,7 @@
     <div class="toolbar" style="border-bottom:none; padding:8px 16px; gap:8px;">
       <button class="btn btn-primary" onclick="base64Encode()">Base64 编码</button>
       <button class="btn btn-primary" onclick="base64Decode()">Base64 解码</button>
+      <button class="btn btn-secondary" id="downloadPdfBtn" style="display:none" onclick="downloadPdf()">下载 PDF</button>
       <button class="btn btn-secondary" onclick="copyBase64Result()">复制结果</button>
       <button class="btn btn-secondary" onclick="clearBase64()">清空</button>
     </div>
@@ -1440,6 +1441,7 @@ function base64Encode() {
 function base64Decode() {
   let input = document.getElementById('base64Input').value.trim();
   const output = document.getElementById('base64Output');
+  const downloadBtn = document.getElementById('downloadPdfBtn');
   if (!input) return;
   
   try {
@@ -1459,22 +1461,48 @@ function base64Decode() {
     // 4. 执行解码
     const binString = atob(input);
     const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0));
-    const decoded = new TextDecoder().decode(bytes);
     
-    output.innerText = decoded;
-    window._base64Result = decoded;
-    showToast('解码成功');
+    // 5. 探测是否是 PDF (魔数 %PDF- 是 25 50 44 46 2D)
+    const isPdf = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
+    
+    if (isPdf) {
+      window._decodedBlob = new Blob([bytes], {type: 'application/pdf'});
+      downloadBtn.style.display = 'inline-flex';
+      output.innerHTML = `<div style="color:var(--accent); margin-bottom:10px;">检测到 PDF 文件数据！</div><div style="color:var(--text2); font-size:12px;">已准备好下载。你可以点击上方的“下载 PDF”按钮保存文件。</div>`;
+      showToast('检测到 PDF 数据');
+    } else {
+      downloadBtn.style.display = 'none';
+      const decoded = new TextDecoder().decode(bytes);
+      output.innerText = decoded;
+      showToast('解码成功');
+    }
+    
+    window._base64Result = isPdf ? 'PDF 文件数据' : output.innerText;
   } catch (e) {
     console.error('Base64 解码详细错误:', e);
+    if (downloadBtn) downloadBtn.style.display = 'none';
     output.innerHTML = `<span style="color:var(--error)">解码失败: 请确保输入是有效的 Base64 字符串。错误详情: ${e.message}</span>`;
   }
   updateCurrentTabData();
 }
 
+function downloadPdf() {
+  if (!window._decodedBlob) return;
+  const url = URL.createObjectURL(window._decodedBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `decoded_${Date.now()}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('正在下载 PDF');
+}
+
 function copyBase64Result() {
   const text = document.getElementById('base64Output').innerText;
-  if (!text || text === '结果将显示在这里...') {
-    showToast('暂无结果');
+  if (!text || text === '结果将显示在这里...' || text === 'PDF 文件数据') {
+    showToast('暂无文本结果可复制');
     return;
   }
   copyToClipboard(text, '已复制结果');
@@ -1483,6 +1511,8 @@ function copyBase64Result() {
 function clearBase64() {
   document.getElementById('base64Input').value = '';
   document.getElementById('base64Output').innerText = '结果将显示在这里...';
+  if (document.getElementById('downloadPdfBtn')) document.getElementById('downloadPdfBtn').style.display = 'none';
+  window._decodedBlob = null;
   updateCurrentTabData();
   showToast('已清空');
 }
