@@ -1,0 +1,1822 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JSON 在线工具</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f12;
+    --surface: #13161b;
+    --surface2: #1a1e26;
+    --border: #252a35;
+    --border2: #2e3545;
+    --accent: #00e5a0;
+    --accent2: #00b37d;
+    --accent-glow: rgba(0,229,160,0.15);
+    --text: #e8ecf0;
+    --text2: #8a9ab0;
+    --text3: #4a5568;
+    --error: #ff4d6a;
+    --error-bg: rgba(255,77,106,0.08);
+    --warning: #ffb347;
+    --string: #79d4b8;
+    --number: #c3a6ff;
+    --boolean: #ff9e64;
+    --null: #8a9ab0;
+    --key: #7eb8f7;
+    --punct: #4a5568;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* TAB BAR */
+  .tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 16px 0 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tab-bar::-webkit-scrollbar { display: none; }
+
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 6px 6px 0 0;
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    position: relative;
+    min-width: 80px;
+    max-width: 180px;
+  }
+
+  .tab:hover { background: #222735; color: var(--text); }
+  .tab.active {
+    background: var(--bg);
+    color: var(--accent);
+    border-color: var(--border);
+    border-bottom: 2px solid var(--bg);
+    margin-bottom: -1px;
+    z-index: 2;
+  }
+
+  .tab-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+
+  .tab-close {
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+    opacity: 0.6;
+  }
+  .tab-close:hover { background: var(--error-bg); color: var(--error); opacity: 1; }
+  .tab-close svg { width: 10px; height: 10px; }
+
+  .add-tab-btn {
+    padding: 6px;
+    color: var(--text3);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s;
+  }
+  .add-tab-btn:hover { color: var(--accent); }
+
+  /* BG decoration */
+  body::before {
+    content: '';
+    position: fixed;
+    top: -200px; left: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(0,229,160,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    height: 58px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 18px;
+    color: var(--text); text-decoration: none;
+    letter-spacing: -0.5px;
+  }
+
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: #0d0f12;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .logo span { color: var(--accent); }
+
+  nav {
+    display: flex; gap: 4px;
+  }
+
+  nav button {
+    background: none; border: none;
+    color: var(--text2);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.2px;
+  }
+
+  nav button:hover { background: var(--surface2); color: var(--text); }
+  nav button.active {
+    background: var(--accent-glow);
+    color: var(--accent);
+    border: 1px solid rgba(0,229,160,0.2);
+  }
+
+  /* TOOLBAR */
+  .toolbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 7px 14px;
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px; font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s;
+    border: 1px solid transparent;
+    letter-spacing: 0.3px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0d0f12;
+    border-color: var(--accent);
+  }
+  .btn-primary:hover { background: #00f0ab; box-shadow: 0 0 16px rgba(0,229,160,0.35); }
+
+  .btn-secondary {
+    background: var(--surface2);
+    color: var(--text2);
+    border-color: var(--border2);
+  }
+  .btn-secondary:hover { color: var(--text); border-color: var(--border2); background: #222735; }
+
+  .btn-danger {
+    background: rgba(255,77,106,0.08);
+    color: var(--error);
+    border-color: rgba(255,77,106,0.2);
+  }
+  .btn-danger:hover { background: rgba(255,77,106,0.15); }
+
+  .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  .separator { width: 1px; height: 24px; background: var(--border); margin: 0 4px; }
+
+  .indent-control {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--text2); font-size: 12px; font-weight: 600;
+    margin-left: auto;
+  }
+
+  .indent-control select {
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+  }
+
+  /* STATUS BAR */
+  .status-bar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 6px 20px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text3);
+    flex-wrap: wrap;
+  }
+
+  .status-badge {
+    display: flex; align-items: center; gap: 5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .status-badge.valid { background: rgba(0,229,160,0.1); color: var(--accent); }
+  .status-badge.invalid { background: rgba(255,77,106,0.1); color: var(--error); }
+  .status-badge.idle { background: var(--surface2); color: var(--text3); }
+
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* MAIN */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    font-size: 11px; font-weight: 600;
+    color: var(--text3);
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+  }
+
+  .panel-header span { display: flex; align-items: center; gap: 6px; }
+
+  .panel-actions { display: flex; gap: 4px; }
+
+  .icon-btn {
+    background: none; border: none;
+    color: var(--text3); cursor: pointer;
+    padding: 4px; border-radius: 5px;
+    transition: all 0.15s;
+    display: flex; align-items: center;
+  }
+  .icon-btn:hover { background: var(--border); color: var(--text); }
+  .icon-btn svg { width: 14px; height: 14px; }
+
+  .divider {
+    width: 4px;
+    background: var(--border);
+    cursor: col-resize;
+    transition: background 0.2s;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .divider:hover { background: var(--accent); }
+  .divider::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px; height: 40px;
+    background: var(--border2);
+    border-radius: 2px;
+  }
+  .divider:hover::after { background: var(--accent); }
+
+  /* EDITOR */
+  .editor-wrap {
+    flex: 1; position: relative; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+
+  textarea {
+    flex: 1;
+    width: 100%;
+    background: var(--bg);
+    color: var(--text);
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.75;
+    padding: 16px 20px;
+    tab-size: 2;
+    caret-color: var(--accent);
+    letter-spacing: 0.3px;
+  }
+
+  textarea::placeholder { color: var(--text3); }
+  textarea:focus { background: #0e1116; }
+
+  textarea.error-state {
+    background: linear-gradient(to bottom, var(--error-bg), var(--bg) 80px);
+  }
+
+  /* OUTPUT */
+  .output-wrap {
+    flex: 1;
+    overflow: auto;
+    background: var(--bg);
+    padding: 16px 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.75;
+  }
+
+  /* JSON highlighting */
+  .json-string { color: var(--string); }
+  .json-number { color: var(--number); }
+  .json-boolean { color: var(--boolean); }
+  .json-null { color: var(--null); font-style: italic; }
+  .json-key { color: var(--key); }
+  .json-punct { color: var(--punct); }
+  .json-brace { color: #5a6a80; }
+
+  .tree-node { display: block; }
+  .tree-toggle {
+    cursor: pointer;
+    user-select: none;
+    color: var(--text3);
+    display: inline-flex; align-items: center;
+    transition: color 0.15s;
+    margin-right: 2px;
+  }
+  .tree-toggle:hover { color: var(--accent); }
+  .tree-toggle svg { width: 10px; height: 10px; }
+
+  .tree-children { display: block; }
+  .tree-children.collapsed { display: none; }
+
+  .tree-preview {
+    color: var(--text3);
+    font-size: 12px;
+  }
+
+  /* ERROR MESSAGE */
+  .error-msg {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: var(--error-bg);
+    border: 1px solid rgba(255,77,106,0.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--error);
+    line-height: 1.6;
+  }
+
+  .error-icon { flex-shrink: 0; margin-top: 2px; }
+
+  /* DIFF VIEW */
+  .diff-added { background: rgba(0,229,160,0.06); color: var(--accent); }
+  .diff-removed { background: rgba(255,77,106,0.06); color: var(--error); text-decoration: line-through; }
+
+  /* SEARCH BAR */
+  .search-bar {
+    display: flex; gap: 8px; align-items: center;
+    padding: 8px 16px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .search-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+
+  /* COPY TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--accent);
+    color: #0d0f12;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-weight: 600; font-size: 13px;
+    transform: translateY(60px);
+    opacity: 0;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+    z-index: 999;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* STATS CHIPS */
+  .stat { color: var(--text3); }
+  .stat b { color: var(--text2); }
+
+  /* SAMPLE MENU */
+  .sample-menu {
+    position: absolute; top: 36px; left: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: 9px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    z-index: 50;
+    overflow: hidden;
+    min-width: 200px;
+    animation: fadeIn 0.15s ease;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+  .sample-menu button {
+    display: block; width: 100%;
+    background: none; border: none;
+    text-align: left;
+    padding: 9px 14px;
+    color: var(--text2);
+    font-size: 12px; font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .sample-menu button:hover { background: var(--border); color: var(--text); }
+
+  .relative { position: relative; }
+
+  /* SCROLLBARS */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3e4a60; }
+
+  /* TABS in output */
+  .view-tabs {
+    display: flex; gap: 0;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .view-tab {
+    padding: 7px 16px;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--text3);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    background: none; border-top: none; border-left: none; border-right: none;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .view-tab:hover { color: var(--text2); }
+  .view-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Line numbers */
+  .editor-container {
+    display: flex; flex: 1; overflow: hidden;
+  }
+
+  .line-numbers {
+    background: var(--surface);
+    color: var(--text3);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.75;
+    padding: 16px 10px 16px 14px;
+    text-align: right;
+    user-select: none;
+    border-right: 1px solid var(--border);
+    min-width: 48px;
+    overflow: hidden;
+    white-space: pre;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 700px) {
+    .main { flex-direction: column; }
+    .divider { width: 100%; height: 4px; cursor: row-resize; }
+    .panel { min-height: 200px; }
+    nav { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="#">
+    <div class="logo-icon">{ }</div>
+    JSON<span>工具</span>
+  </a>
+  <nav>
+    <button class="active" onclick="switchTab('format')">格式化</button>
+    <button onclick="switchTab('compress')">压缩</button>
+    <button onclick="switchTab('validate')">校验</button>
+    <button onclick="switchTab('convert')">转义</button>
+    <button onclick="switchTab('xslt'); showXsltPanel()">XSLT</button>
+  </nav>
+</header>
+
+<div class="tab-bar" id="tabBar">
+  <!-- Tabs will be injected here -->
+  <div class="add-tab-btn" onclick="addNewTab()" title="新任务">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M3 8h10"/></svg>
+  </div>
+</div>
+
+<div class="toolbar">
+  <button class="btn btn-primary" onclick="formatJSON(event)" title="Ctrl/Alt + 点击：格式化原文">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 4h12M2 8h8M2 12h10"/></svg>
+    格式化
+  </button>
+  <button class="btn btn-secondary" onclick="compressJSON()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3l6 5-6 5"/></svg>
+    压缩
+  </button>
+  <button class="btn btn-secondary" onclick="validateOnly()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="2,8 6,12 14,4"/></svg>
+    校验
+  </button>
+  <div class="separator"></div>
+  <button class="btn btn-secondary" onclick="escapeJSON()">转义</button>
+  <button class="btn btn-secondary" onclick="unescapeJSON()">去转义</button>
+  <div class="separator"></div>
+  <div class="relative" id="sampleWrap">
+    <button class="btn btn-secondary" onclick="toggleSampleMenu()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M5 5h3M5 11h4"/></svg>
+      示例
+    </button>
+    <div class="sample-menu" id="sampleMenu" style="display:none">
+      <button onclick="loadSample('simple')">简单对象</button>
+      <button onclick="loadSample('array')">数组数据</button>
+      <button onclick="loadSample('nested')">嵌套结构</button>
+      <button onclick="loadSample('complex')">复杂示例</button>
+    </div>
+  </div>
+  <button class="btn btn-danger" onclick="clearAll()">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h10l-1 9H4L3 4zm3-2h4m-6 2V3"/></svg>
+    清空
+  </button>
+
+  <div class="indent-control">
+    缩进:
+    <select id="indentSize" onchange="formatJSON()">
+      <option value="2">2 空格</option>
+      <option value="4">4 空格</option>
+      <option value="tab">Tab</option>
+    </select>
+  </div>
+</div>
+
+<div class="status-bar">
+  <div class="status-badge idle" id="statusBadge">
+    <div class="status-dot"></div>
+    <span id="statusText">就绪</span>
+  </div>
+  <span class="stat" id="statChars"></span>
+  <span class="stat" id="statKeys"></span>
+  <span class="stat" id="statDepth"></span>
+  <span class="stat" id="statLines"></span>
+</div>
+
+<div class="main" id="mainArea">
+  <!-- INPUT PANEL -->
+  <div class="panel" id="inputPanel">
+    <div class="panel-header">
+      <span>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 6l3 3 3-3"/></svg>
+        输入
+      </span>
+      <div class="panel-actions">
+        <button class="icon-btn" onclick="pasteFromClipboard()" title="粘贴">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="9" height="10" rx="1"/><path d="M4 4V3a1 1 0 011-1h2m0 0h2a1 1 0 011 1v1M6 2a1 1 0 000 2h4a1 1 0 000-2"/></svg>
+        </button>
+        <button class="icon-btn" onclick="copyInput()" title="复制">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="10" rx="1"/><rect x="5" y="1" width="8" height="10" rx="1" fill="var(--surface2)" stroke="currentColor"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="editor-container">
+      <div class="line-numbers" id="lineNumbers">1</div>
+      <div class="editor-wrap">
+        <textarea id="jsonInput" placeholder='在此粘贴或输入 JSON 数据...&#10;&#10;例如: {"name": "JSON工具", "version": 1}' 
+          oninput="onInputChange()" onscroll="syncScroll()" onkeydown="handleTab(event)"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider" id="divider"></div>
+
+  <!-- OUTPUT PANEL -->
+  <div class="panel" id="outputPanel">
+    <div class="panel-header">
+      <span>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="2,8 6,12 14,4"/></svg>
+        输出
+      </span>
+      <div class="panel-actions">
+        <button class="icon-btn" onclick="copyOutput()" title="复制输出">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="10" rx="1"/><rect x="5" y="1" width="8" height="10" rx="1" fill="var(--surface2)" stroke="currentColor"/></svg>
+        </button>
+        <button class="icon-btn" onclick="expandAll()" title="展开全部">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l5 5 5-5"/><path d="M3 2h10"/></svg>
+        </button>
+        <button class="icon-btn" onclick="collapseAll()" title="折叠全部">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l5-5 5 5"/><path d="M3 14h10"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="view-tabs">
+      <button class="view-tab active" onclick="switchView('tree')" id="treeTab">树形视图</button>
+      <button class="view-tab" onclick="switchView('raw')" id="rawTab">原始文本</button>
+    </div>
+    <div class="output-wrap" id="outputWrap">
+      <div id="jsonOutput" style="color:var(--text3); font-size:13px; padding-top:4px;">格式化结果将显示在这里...</div>
+    </div>
+  </div>
+</div>
+
+<!-- XSLT PANEL -->
+<div id="xsltPanel" style="display:none; flex:1; flex-direction:column; overflow:hidden; position:relative; z-index:1;">
+
+  <!-- top: source + xslt side by side -->
+  <div style="display:flex; flex:1; min-height:0; overflow:hidden;">
+
+    <!-- Source panel -->
+    <div class="panel" style="flex:1;">
+      <div class="panel-header" style="padding: 0 16px; min-height: 34px;">
+        <div class="view-tabs" style="border-bottom: none; background: none;">
+          <button class="view-tab active" id="xsltSrcJsonTab" onclick="setXsltSourceMode('json')" style="padding: 10px 16px;">JSON 输入</button>
+          <button class="view-tab" id="xsltSrcXmlTab" onclick="setXsltSourceMode('xml')" style="padding: 10px 16px;">XML 输入</button>
+        </div>
+        <div class="panel-actions">
+          <button class="icon-btn" onclick="xsltCopySource()" title="复制">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="10" rx="1"/><rect x="5" y="1" width="8" height="10" rx="1" fill="var(--surface2)" stroke="currentColor"/></svg>
+          </button>
+          <button class="icon-btn" onclick="xsltClearSource()" title="删除数据源">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h10l-1 9H4L3 4zm3-2h4m-6 2V3"/></svg>
+          </button>
+        </div>
+      </div>
+      <textarea id="xsltSource" style="flex:1; width:100%; background:var(--bg); color:var(--text); border:none; outline:none; resize:none; font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.75; padding:16px 20px; caret-color:var(--accent);"
+        placeholder='粘贴 JSON 或 XML 源数据...'></textarea>
+    </div>
+
+    <div style="width:4px; background:var(--border); flex-shrink:0;"></div>
+
+    <!-- XSLT panel -->
+    <div class="panel" style="flex:1;">
+      <div class="panel-header" style="min-height: 34px;">
+        <span>XSLT 模板</span>
+        <div class="panel-actions">
+          <button class="icon-btn" onclick="xsltCopyTemplate()" title="复制模板">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="10" rx="1"/><rect x="5" y="1" width="8" height="10" rx="1" fill="var(--surface2)" stroke="currentColor"/></svg>
+          </button>
+          <button class="icon-btn" onclick="xsltClearTemplate()" title="删除模板">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 4h10l-1 9H4L3 4zm3-2h4m-6 2V3"/></svg>
+          </button>
+          <button class="icon-btn" onclick="loadXsltSample()" title="加载示例">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M5 5h3M5 11h4"/></svg>
+          </button>
+        </div>
+      </div>
+      <textarea id="xsltTemplate" style="flex:1; width:100%; background:var(--bg); color:var(--text); border:none; outline:none; resize:none; font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.75; padding:16px 20px; caret-color:var(--accent);"
+        placeholder='粘贴 XSLT 模板...'></textarea>
+    </div>
+
+  </div>
+
+  <!-- bottom: toolbar + output -->
+  <div style="border-top:1px solid var(--border);">
+    <div class="toolbar" style="border-bottom:none; padding:8px 16px; gap:8px;">
+      <button class="btn btn-primary" onclick="runXslt()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3,2 13,8 3,14"/></svg>
+        执行转换
+      </button>
+      <button class="btn btn-secondary" onclick="xsltCopyOutput()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="10" rx="1"/><rect x="5" y="1" width="8" height="10" rx="1" fill="var(--surface2)" stroke="currentColor"/></svg>
+        复制结果
+      </button>
+      <button class="btn btn-secondary" onclick="clearXslt()">清空</button>
+      <span id="xsltStatus" style="font-size:12px; color:var(--text3); font-family:'JetBrains Mono',monospace; margin-left:8px;"></span>
+    </div>
+    <div id="xsltOutput" style="height:220px; overflow:auto; background:var(--bg); padding:16px 20px; font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.75; color:var(--text3);">
+      转换结果将显示在这里...
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast">✓ 已复制</div>
+
+<script>
+let currentView = 'tree';
+let parsedData = null;
+let outputText = '';
+let currentTab = 'format';
+
+// ──────────────────────────── TAB SYSTEM ────────────────────────────
+
+let tabs = [];
+let activeTabId = null;
+
+function initTabs() {
+  const saved = localStorage.getItem('json_tool_tabs');
+  if (saved) {
+    tabs = JSON.parse(saved);
+    activeTabId = localStorage.getItem('json_tool_active_tab') || tabs[0].id;
+  } else {
+    const initialTab = {
+      id: Date.now().toString(),
+      title: '未命名任务 1',
+      json: '',
+      xsltSource: '',
+      xsltTemplate: '',
+      xsltMode: 'json',
+      activeFunction: 'format'
+    };
+    tabs = [initialTab];
+    activeTabId = initialTab.id;
+  }
+  renderTabs();
+  loadTabContent(activeTabId);
+}
+
+function renderTabs() {
+  const container = document.getElementById('tabBar');
+  // Keep only the add button
+  const addBtn = container.querySelector('.add-tab-btn');
+  container.innerHTML = '';
+  
+  tabs.forEach(tab => {
+    const tabEl = document.createElement('div');
+    tabEl.className = `tab ${tab.id === activeTabId ? 'active' : ''}`;
+    tabEl.onclick = () => switchTabTo(tab.id);
+    tabEl.ondblclick = () => renameTab(tab.id);
+    
+    tabEl.innerHTML = `
+      <span class="tab-title">${tab.title}</span>
+      <div class="tab-close" onclick="closeTab(event, '${tab.id}')">
+        <svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1 1l8 8M9 1L1 9"/></svg>
+      </div>
+    `;
+    container.appendChild(tabEl);
+  });
+  
+  container.appendChild(addBtn);
+}
+
+function addNewTab() {
+  const newId = Date.now().toString();
+  const newTab = {
+    id: newId,
+    title: `未命名任务 ${tabs.length + 1}`,
+    json: '',
+    xsltSource: '',
+    xsltTemplate: '',
+    xsltMode: 'json',
+    activeFunction: 'format'
+  };
+  tabs.push(newTab);
+  saveTabs();
+  switchTabTo(newId);
+}
+
+function switchTabTo(id) {
+  if (activeTabId === id) return;
+  
+  // Save current tab content before switching
+  updateCurrentTabData();
+  
+  activeTabId = id;
+  localStorage.setItem('json_tool_active_tab', id);
+  renderTabs();
+  loadTabContent(id);
+}
+
+function closeTab(e, id) {
+  e.stopPropagation();
+  if (tabs.length === 1) return;
+  
+  const index = tabs.findIndex(t => t.id === id);
+  tabs.splice(index, 1);
+  
+  if (activeTabId === id) {
+    activeTabId = tabs[Math.max(0, index - 1)].id;
+    localStorage.setItem('json_tool_active_tab', activeTabId);
+    loadTabContent(activeTabId);
+  }
+  
+  saveTabs();
+  renderTabs();
+}
+
+function renameTab(id) {
+  const tab = tabs.find(t => t.id === id);
+  const newName = prompt('重命名任务:', tab.title);
+  if (newName && newName.trim()) {
+    tab.title = newName.trim();
+    saveTabs();
+    renderTabs();
+  }
+}
+
+function saveTabs() {
+  localStorage.setItem('json_tool_tabs', JSON.stringify(tabs));
+}
+
+function updateCurrentTabData() {
+  const tab = tabs.find(t => t.id === activeTabId);
+  if (tab) {
+    tab.json = document.getElementById('jsonInput').value;
+    tab.xsltSource = document.getElementById('xsltSource').value;
+    tab.xsltTemplate = document.getElementById('xsltTemplate').value;
+    tab.xsltMode = xsltSourceMode;
+    tab.activeFunction = currentTab;
+    saveTabs();
+  }
+}
+
+function loadTabContent(id) {
+  const tab = tabs.find(t => t.id === id);
+  if (tab) {
+    document.getElementById('jsonInput').value = tab.json || '';
+    document.getElementById('xsltSource').value = tab.xsltSource || '';
+    document.getElementById('xsltTemplate').value = tab.xsltTemplate || '';
+    setXsltSourceMode(tab.xsltMode || 'json');
+    
+    // 恢复功能切换状态
+    if (tab.activeFunction) {
+      switchTab(tab.activeFunction);
+      if (tab.activeFunction === 'xslt') {
+        showXsltPanel();
+      } else {
+        hideXsltPanel();
+      }
+    }
+
+    // 触发重新渲染和行号更新，但不清空内容
+    updateLineNumbers();
+    // 如果有 JSON 数据，尝试解析并渲染树形/文本视图
+    if (tab.json) {
+      try {
+        parsedData = JSON.parse(tab.json);
+        renderOutput();
+      } catch(e) {
+        parsedData = null;
+      }
+    } else {
+      clearOutput();
+    }
+  }
+}
+
+// Auto-save on input
+function onInputChange() {
+  updateLineNumbers();
+  updateCurrentTabData();
+}
+
+// ──────────────────────────── CORE ────────────────────────────
+
+function getIndent() {
+  const v = document.getElementById('indentSize').value;
+  return v === 'tab' ? '\t' : ' '.repeat(parseInt(v));
+}
+
+function formatJSON(e) {
+  const input = document.getElementById('jsonInput').value.trim();
+  if (!input) { clearOutput(); return; }
+  try {
+    parsedData = JSON.parse(input);
+    const indent = getIndent();
+    outputText = JSON.stringify(parsedData, null, indent);
+    setStatus('valid', '✓ JSON 合法');
+    updateStats(parsedData, outputText);
+
+    // Ctrl 或 Alt 点击：将格式化结果写回输入框，切换到纯文本视图
+    if (e && (e.ctrlKey || e.altKey)) {
+      document.getElementById('jsonInput').value = outputText;
+      updateLineNumbers();
+      switchView('raw');
+      showToast('已格式化原文');
+      return;
+    }
+
+    renderOutput();
+  } catch (e) {
+    parsedData = null;
+    outputText = '';
+    setStatus('invalid', '✗ ' + friendlyError(e));
+    showError(e.message);
+    clearStats();
+  }
+}
+
+function compressJSON() {
+  const input = document.getElementById('jsonInput').value.trim();
+  if (!input) return;
+  try {
+    parsedData = JSON.parse(input);
+    outputText = JSON.stringify(parsedData);
+    document.getElementById('jsonInput').value = outputText;
+    setStatus('valid', '✓ 已压缩');
+    updateStats(parsedData, outputText);
+    renderOutput();
+    updateLineNumbers();
+    showToast('已压缩');
+  } catch(e) {
+    setStatus('invalid', '✗ ' + friendlyError(e));
+    showError(e.message);
+  }
+}
+
+function validateOnly() {
+  const input = document.getElementById('jsonInput').value.trim();
+  if (!input) { setStatus('idle', '就绪'); return; }
+  try {
+    JSON.parse(input);
+    setStatus('valid', '✓ JSON 格式正确');
+    showToast('✓ 校验通过');
+  } catch(e) {
+    setStatus('invalid', '✗ ' + friendlyError(e));
+    showError(e.message);
+  }
+}
+
+function escapeJSON() {
+  const input = document.getElementById('jsonInput').value;
+  outputText = JSON.stringify(input);
+  document.getElementById('jsonOutput').innerHTML = '<span class="json-string">' + escapeHtml(outputText) + '</span>';
+  setStatus('valid', '已转义');
+}
+
+function unescapeJSON() {
+  const input = document.getElementById('jsonInput').value.trim();
+  try {
+    const unescaped = JSON.parse(input);
+    if (typeof unescaped === 'string') {
+      outputText = unescaped;
+    } else {
+      outputText = JSON.stringify(unescaped, null, getIndent());
+    }
+    document.getElementById('jsonOutput').innerText = outputText;
+    setStatus('valid', '已去转义');
+  } catch(e) {
+    setStatus('invalid', '去转义失败');
+  }
+}
+
+function clearAll() {
+  // 清空主 JSON 输入和输出
+  document.getElementById('jsonInput').value = '';
+  clearOutput();
+  setStatus('idle', '就绪');
+  clearStats();
+  parsedData = null;
+  updateLineNumbers();
+
+  // 如果在 XSLT 模式，同时清空 XSLT 相关内容
+  if (document.getElementById('xsltPanel').style.display === 'flex') {
+    clearXslt();
+  } else {
+    updateCurrentTabData();
+    showToast('已清空');
+  }
+}
+
+// ──────────────────────────── RENDER ────────────────────────────
+
+function renderOutput() {
+  if (!parsedData && parsedData !== 0 && parsedData !== '' && parsedData !== false && parsedData !== null) return;
+  const wrap = document.getElementById('jsonOutput');
+  if (currentView === 'tree') {
+    wrap.innerHTML = renderTree(parsedData, 0);
+    attachToggleHandlers();
+  } else {
+    wrap.innerHTML = syntaxHighlight(outputText);
+  }
+}
+
+function renderTree(value, depth, key, isLast) {
+  const comma = isLast ? '' : '<span class="json-punct">,</span>';
+  let html = '<div class="tree-node">';
+  let prefix = '';
+  if (key !== undefined) {
+    prefix = `<span class="json-key">"${escapeHtml(String(key))}"</span><span class="json-punct">: </span>`;
+  }
+
+  if (value === null) {
+    html += prefix + `<span class="json-null">null</span>${comma}`;
+  } else if (typeof value === 'boolean') {
+    html += prefix + `<span class="json-boolean">${value}</span>${comma}`;
+  } else if (typeof value === 'number') {
+    html += prefix + `<span class="json-number">${value}</span>${comma}`;
+  } else if (typeof value === 'string') {
+    html += prefix + `<span class="json-string">"${escapeHtml(value)}"</span>${comma}`;
+  } else if (Array.isArray(value)) {
+    const len = value.length;
+    if (len === 0) {
+      html += prefix + `<span class="json-brace">[]</span>${comma}`;
+    } else {
+      const id = 'node-' + Math.random().toString(36).slice(2);
+      html += prefix;
+      html += `<span class="tree-toggle expanded" data-target="${id}"><svg viewBox="0 0 10 10" fill="currentColor"><path d="M1 3l4 4 4-4"/></svg></span>`;
+      html += `<span class="json-brace">[</span>`;
+      html += `<span class="tree-preview" style="display:none"> … ${len} 项 ]</span>`;
+      html += `<div class="tree-children" id="${id}" style="padding-left:20px">`;
+      value.forEach((item, i) => {
+        html += renderTree(item, depth + 1, i, i === len - 1);
+      });
+      html += `</div>`;
+      html += `<span class="json-brace">]</span>${comma}`;
+    }
+  } else if (typeof value === 'object') {
+    const keys = Object.keys(value);
+    if (keys.length === 0) {
+      html += prefix + `<span class="json-brace">{}</span>${comma}`;
+    } else {
+      const id = 'node-' + Math.random().toString(36).slice(2);
+      html += prefix;
+      html += `<span class="tree-toggle expanded" data-target="${id}"><svg viewBox="0 0 10 10" fill="currentColor"><path d="M1 3l4 4 4-4"/></svg></span>`;
+      html += `<span class="json-brace">{</span>`;
+      html += `<span class="tree-preview" style="display:none"> … ${keys.length} 个属性 }</span>`;
+      html += `<div class="tree-children" id="${id}" style="padding-left:20px">`;
+      keys.forEach((k, i) => {
+        html += renderTree(value[k], depth + 1, k, i === keys.length - 1);
+      });
+      html += `</div>`;
+      html += `<span class="json-brace">}</span>${comma}`;
+    }
+  }
+  html += '</div>';
+  return html;
+}
+
+function attachToggleHandlers() {
+  // Use event delegation — bind once on the output container
+  const wrap = document.getElementById('jsonOutput');
+  wrap.onclick = function(e) {
+    const toggle = e.target.closest('.tree-toggle');
+    if (!toggle) return;
+    const targetId = toggle.getAttribute('data-target');
+    const children = document.getElementById(targetId);
+    if (!children) return;
+    // preview is the span right after the opening brace span (sibling after toggle + brace)
+    const preview = toggle.nextElementSibling?.nextElementSibling;
+    const isExpanded = toggle.classList.contains('expanded');
+    if (isExpanded) {
+      toggle.classList.remove('expanded');
+      toggle.classList.add('collapsed');
+      toggle.innerHTML = '<svg viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l4 4-4 4"/></svg>';
+      children.classList.add('collapsed');
+      if (preview) preview.style.display = '';
+    } else {
+      toggle.classList.remove('collapsed');
+      toggle.classList.add('expanded');
+      toggle.innerHTML = '<svg viewBox="0 0 10 10" fill="currentColor"><path d="M1 3l4 4 4-4"/></svg>';
+      children.classList.remove('collapsed');
+      if (preview) preview.style.display = 'none';
+    }
+  };
+}
+
+function syntaxHighlight(json) {
+  return json
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match => {
+      let cls = 'json-number';
+      if (/^"/.test(match)) {
+        cls = /:$/.test(match) ? 'json-key' : 'json-string';
+      } else if (/true|false/.test(match)) {
+        cls = 'json-boolean';
+      } else if (/null/.test(match)) {
+        cls = 'json-null';
+      }
+      return `<span class="${cls}">${match}</span>`;
+    });
+}
+
+// ──────────────────────────── UI HELPERS ────────────────────────────
+
+function clearOutput() {
+  document.getElementById('jsonOutput').innerHTML = '<span style="color:var(--text3);font-size:13px;">格式化结果将显示在这里...</span>';
+  outputText = '';
+}
+
+function showError(msg) {
+  document.getElementById('jsonOutput').innerHTML = `
+    <div class="error-msg">
+      <svg class="error-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="8" cy="8" r="6"/><path d="M8 5v3M8 11v.5"/>
+      </svg>
+      <div>
+        <div style="font-weight:600;margin-bottom:4px;color:var(--error);">JSON 解析错误</div>
+        <div style="color:var(--text2)">${escapeHtml(msg)}</div>
+      </div>
+    </div>`;
+  document.getElementById('jsonInput').classList.add('error-state');
+  setTimeout(() => document.getElementById('jsonInput').classList.remove('error-state'), 2000);
+}
+
+function setStatus(type, text) {
+  const badge = document.getElementById('statusBadge');
+  badge.className = 'status-badge ' + type;
+  document.getElementById('statusText').textContent = text;
+}
+
+function updateStats(data, str) {
+  const chars = str.length;
+  const keys = countKeys(data);
+  const depth = getDepth(data);
+  const lines = str.split('\n').length;
+  document.getElementById('statChars').innerHTML = `<b>${chars.toLocaleString()}</b> 字符`;
+  document.getElementById('statKeys').innerHTML = `<b>${keys}</b> 键`;
+  document.getElementById('statDepth').innerHTML = `深度 <b>${depth}</b>`;
+  document.getElementById('statLines').innerHTML = `<b>${lines}</b> 行`;
+}
+
+function clearStats() {
+  ['statChars','statKeys','statDepth','statLines'].forEach(id => document.getElementById(id).textContent = '');
+}
+
+function countKeys(obj) {
+  if (typeof obj !== 'object' || obj === null) return 0;
+  let count = Array.isArray(obj) ? 0 : Object.keys(obj).length;
+  const vals = Array.isArray(obj) ? obj : Object.values(obj);
+  vals.forEach(v => { count += countKeys(v); });
+  return count;
+}
+
+function getDepth(obj, d=0) {
+  if (typeof obj !== 'object' || obj === null) return d;
+  const vals = Array.isArray(obj) ? obj : Object.values(obj);
+  return vals.reduce((max, v) => Math.max(max, getDepth(v, d+1)), d);
+}
+
+function friendlyError(e) {
+  const m = e.message;
+  if (m.includes('position')) {
+    const pos = m.match(/position (\d+)/);
+    return pos ? `第 ${pos[1]} 个字符附近有错误` : m;
+  }
+  return m;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ──────────────────────────── LINE NUMBERS ────────────────────────────
+
+// 初始加载
+window.onload = () => {
+  initTabs();
+  updateLineNumbers();
+};
+
+function onInputChange() {
+  updateLineNumbers();
+  updateCurrentTabData();
+}
+
+// 监听 XSLT 面板的输入进行保存
+document.getElementById('xsltSource').addEventListener('input', updateCurrentTabData);
+document.getElementById('xsltTemplate').addEventListener('input', updateCurrentTabData);
+
+function updateLineNumbers() {
+  const ta = document.getElementById('jsonInput');
+  const lines = ta.value.split('\n').length;
+  const nums = Array.from({length: lines}, (_,i) => i+1).join('\n');
+  document.getElementById('lineNumbers').textContent = nums;
+}
+
+function syncScroll() {
+  const ta = document.getElementById('jsonInput');
+  document.getElementById('lineNumbers').scrollTop = ta.scrollTop;
+}
+
+// ──────────────────────────── ACTIONS ────────────────────────────
+
+function onInputChange() {
+  updateLineNumbers();
+  const input = document.getElementById('jsonInput').value.trim();
+  if (!input) { clearOutput(); setStatus('idle','就绪'); clearStats(); return; }
+  // Auto-format after brief pause
+  clearTimeout(window._fmtTimer);
+  window._fmtTimer = setTimeout(() => formatJSON(null), 500);
+}
+
+function handleTab(e) {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const ta = e.target;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    ta.value = ta.value.slice(0,start) + '  ' + ta.value.slice(end);
+    ta.selectionStart = ta.selectionEnd = start + 2;
+    updateLineNumbers();
+  }
+}
+
+function switchView(view) {
+  currentView = view;
+  document.getElementById('treeTab').classList.toggle('active', view === 'tree');
+  document.getElementById('rawTab').classList.toggle('active', view === 'raw');
+  renderOutput();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('nav button').forEach((b,i) => {
+    b.classList.toggle('active', ['format','compress','validate','convert','xslt'][i] === tab);
+  });
+  updateCurrentTabData();
+}
+
+function copyOutput() {
+  if (!outputText) return;
+  navigator.clipboard.writeText(outputText).then(() => showToast('已复制输出'));
+}
+
+function copyInput() {
+  const v = document.getElementById('jsonInput').value;
+  if (!v) return;
+  navigator.clipboard.writeText(v).then(() => showToast('已复制'));
+}
+
+async function pasteFromClipboard() {
+  try {
+    const text = await navigator.clipboard.readText();
+    document.getElementById('jsonInput').value = text;
+    updateLineNumbers();
+    formatJSON();
+  } catch(e) { showToast('无法访问剪贴板'); }
+}
+
+function expandAll() {
+  document.querySelectorAll('.tree-children').forEach(c => c.classList.remove('collapsed'));
+  document.querySelectorAll('.tree-preview').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.tree-toggle').forEach(t => {
+    t.classList.remove('collapsed'); t.classList.add('expanded');
+    t.innerHTML = '<svg viewBox="0 0 10 10" fill="currentColor"><path d="M1 3l4 4 4-4"/></svg>';
+  });
+}
+
+function collapseAll() {
+  document.querySelectorAll('.tree-children').forEach(c => c.classList.add('collapsed'));
+  document.querySelectorAll('.tree-preview').forEach(p => p.style.display = '');
+  document.querySelectorAll('.tree-toggle').forEach(t => {
+    t.classList.remove('expanded'); t.classList.add('collapsed');
+    t.innerHTML = '<svg viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l4 4-4 4"/></svg>';
+  });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+// ──────────────────────────── SAMPLES ────────────────────────────
+
+const SAMPLES = {
+  simple: `{
+  "name": "张三",
+  "age": 28,
+  "email": "zhangsan@example.com",
+  "active": true,
+  "score": null
+}`,
+  array: `[
+  {"id": 1, "name": "苹果", "price": 5.5, "stock": 100},
+  {"id": 2, "name": "香蕉", "price": 3.2, "stock": 200},
+  {"id": 3, "name": "橘子", "price": 4.8, "stock": 150}
+]`,
+  nested: `{
+  "company": "科技有限公司",
+  "founded": 2018,
+  "address": {
+    "province": "广东",
+    "city": "深圳",
+    "street": "科技园南路"
+  },
+  "departments": [
+    {"name": "研发部", "headcount": 50},
+    {"name": "产品部", "headcount": 20}
+  ]
+}`,
+  complex: `{
+  "project": "JSON在线工具",
+  "version": "2.0.0",
+  "features": ["格式化", "压缩", "校验", "树形视图", "语法高亮"],
+  "config": {
+    "indent": 2,
+    "theme": "dark",
+    "autoFormat": true,
+    "shortcuts": {
+      "format": "Ctrl+Enter",
+      "copy": "Ctrl+C"
+    }
+  },
+  "stats": {
+    "users": 12480,
+    "parses_today": 38900,
+    "uptime_pct": 99.98
+  },
+  "tags": ["json", "tool", "formatter", "validator"],
+  "license": "MIT",
+  "published": true
+}`
+};
+
+function loadSample(key) {
+  document.getElementById('jsonInput').value = SAMPLES[key];
+  document.getElementById('sampleMenu').style.display = 'none';
+  updateLineNumbers();
+  formatJSON();
+}
+
+function toggleSampleMenu() {
+  const m = document.getElementById('sampleMenu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+
+document.addEventListener('click', e => {
+  if (!document.getElementById('sampleWrap').contains(e.target)) {
+    document.getElementById('sampleMenu').style.display = 'none';
+  }
+});
+
+// ──────────────────────────── RESIZE DIVIDER ────────────────────────────
+
+const divider = document.getElementById('divider');
+let isDragging = false;
+
+divider.addEventListener('mousedown', e => {
+  isDragging = true;
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  const main = document.getElementById('mainArea');
+  const rect = main.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width * 100;
+  const clamped = Math.max(20, Math.min(80, pct));
+  document.getElementById('inputPanel').style.flex = `0 0 ${clamped}%`;
+  document.getElementById('outputPanel').style.flex = `0 0 ${100 - clamped}%`;
+});
+
+document.addEventListener('mouseup', () => {
+  isDragging = false;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// ──────────────────────────── KEYBOARD SHORTCUTS ────────────────────────────
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); formatJSON(); }
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') { e.preventDefault(); copyOutput(); }
+});
+
+// ──────────────────────────── XSLT ────────────────────────────
+
+let xsltSourceMode = 'json'; // 'json' | 'xml'
+
+function showXsltPanel() {
+  document.getElementById('mainArea').style.display = 'none';
+  document.getElementById('xsltPanel').style.display = 'flex';
+}
+
+function hideXsltPanel() {
+  document.getElementById('mainArea').style.display = 'flex';
+  document.getElementById('xsltPanel').style.display = 'none';
+}
+
+function setXsltSourceMode(mode) {
+  xsltSourceMode = mode;
+  document.getElementById('xsltSrcJsonTab').classList.toggle('active', mode === 'json');
+  document.getElementById('xsltSrcXmlTab').classList.toggle('active', mode === 'xml');
+  document.getElementById('xsltSource').placeholder =
+    mode === 'json' ? '粘贴 JSON 源数据，将自动转为中间 XML 再应用 XSLT...'
+                    : '粘贴 XML 源数据，将直接应用 XSLT 模板...';
+}
+
+// JSON 对象 → XML 字符串（递归）
+function jsonToXml(obj, tagName) {
+  // 数组：如果有父标签名，每个元素都用该标签名，否则用 <item>
+  if (Array.isArray(obj)) {
+    const childTag = tagName || 'item';
+    return obj.map(item => jsonToXml(item, childTag)).join('\n');
+  }
+  if (obj === null) return tagName ? `<${tagName}/>` : '';
+  if (typeof obj !== 'object') {
+    return tagName ? `<${tagName}>${escapeXml(String(obj))}</${tagName}>` : escapeXml(String(obj));
+  }
+  // 对象：对每个 key 生成对应标签；如果 value 是数组，递归时把 key 作为 childTag
+  const inner = Object.entries(obj)
+    .map(([k, v]) => {
+      const tag = sanitizeTag(k);
+      if (Array.isArray(v)) {
+        // 数组：每个元素以父 key 作为标签名
+        return v.map(item => jsonToXml(item, tag)).join('\n');
+      }
+      return jsonToXml(v, tag);
+    })
+    .join('\n');
+  return tagName
+    ? `<${tagName}>\n${indent2(inner)}\n</${tagName}>`
+    : inner;
+}
+
+function sanitizeTag(k) {
+  // XML 标签名不能以数字或特殊字符开头
+  return k.replace(/[^a-zA-Z0-9_\-\.]/g, '_').replace(/^([^a-zA-Z_])/, '_$1') || '_';
+}
+
+function escapeXml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+
+function indent2(str) {
+  return str.split('\n').map(l => '  ' + l).join('\n');
+}
+
+// 检测 XSLT 版本：除了看 version 属性，还检查是否用到了 2.0/3.0 特有的函数或元素
+function detectXsltVersion(xslStr) {
+  // 先看 version 属性
+  const m = xslStr.match(/<xsl:stylesheet[^>]*\sversion\s*=\s*["']([^"']+)["']/);
+  const declaredVersion = m ? parseFloat(m[1]) : 1.0;
+
+  // 检测 XSLT 2.0/3.0 特有的函数和元素
+  // 注意用单词边界避免误匹配（例如 translate 在 1.0 和 2.0 都有）
+  const v2Features = [
+    /\breplace\s*\(/,           // 2.0 正则替换
+    /\bmatches\s*\(/,           // 2.0 正则匹配
+    /\btokenize\s*\(/,          // 2.0 正则分割
+    /\bupper-case\s*\(/,        // 2.0 大写
+    /\blower-case\s*\(/,        // 2.0 小写
+    /\bstring-join\s*\(/,       // 2.0
+    /\bdistinct-values\s*\(/,   // 2.0
+    /\bcurrent-date\s*\(/,      // 2.0
+    /\bcurrent-dateTime\s*\(/,  // 2.0
+    /\bformat-date\s*\(/,       // 2.0
+    /\bformat-dateTime\s*\(/,   // 2.0
+    /\bformat-number\s*\(/,     // 2.0（1.0 也有但语法不同，保险起见归为 2.0）
+    /\bindex-of\s*\(/,          // 2.0
+    /\bends-with\s*\(/,         // 2.0
+    /<xsl:for-each-group\b/,    // 2.0
+    /<xsl:function\b/,          // 2.0
+    /<xsl:sequence\b/,          // 2.0
+    /<xsl:analyze-string\b/,    // 2.0
+    /<xsl:result-document\b/,   // 2.0
+    /<xsl:iterate\b/,           // 3.0
+    /<xsl:merge\b/,             // 3.0
+    /<xsl:try\b/,               // 3.0
+    /\bxsl:mode\b/,             // 3.0
+  ];
+
+  for (const pattern of v2Features) {
+    if (pattern.test(xslStr)) {
+      return Math.max(declaredVersion, 2.0);
+    }
+  }
+
+  return declaredVersion;
+}
+
+// 准备源 XML 字符串
+function prepareSourceXml(sourceRaw, xsltVersion) {
+  if (xsltSourceMode === 'json') {
+    // 如果是 XSLT 3.0，通常期望直接解析原始 JSON
+    // 我们提供一个 <JSON> 标签包裹原始字符串，方便使用 parse-json(JSON)
+    if (xsltVersion >= 3.0) {
+      return `<?xml version="1.0" encoding="UTF-8"?>\n<JSON>${escapeXml(sourceRaw)}</JSON>`;
+    }
+
+    let jsonObj;
+    try { jsonObj = JSON.parse(sourceRaw); }
+    catch(e) { throw new Error('JSON 解析失败：' + e.message); }
+
+    // XSLT 1.0/2.0 模式：继续提供结构化 XML
+    if (jsonObj && typeof jsonObj === 'object' && !Array.isArray(jsonObj)) {
+      const keys = Object.keys(jsonObj);
+      if (keys.length === 1) {
+        return `<?xml version="1.0" encoding="UTF-8"?>\n` + jsonToXml(jsonObj[keys[0]], sanitizeTag(keys[0]));
+      }
+    }
+    const inner = jsonToXml(jsonObj, null);
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<root>\n${indent2(inner)}\n</root>`;
+  }
+  return sourceRaw;
+}
+
+async function runXslt() {
+  const sourceRaw = document.getElementById('xsltSource').value.trim();
+  const xsltRaw   = document.getElementById('xsltTemplate').value.trim();
+  const outputEl  = document.getElementById('xsltOutput');
+
+  if (!sourceRaw) { setXsltStatus('error', '请输入源数据'); return; }
+  if (!xsltRaw)   { setXsltStatus('error', '请输入 XSLT 模板'); return; }
+
+  const version = detectXsltVersion(xsltRaw);
+
+  // 准备源 XML
+  let sourceXmlStr;
+  try { sourceXmlStr = prepareSourceXml(sourceRaw, version); }
+  catch(e) { setXsltStatus('error', e.message); return; }
+
+  if (version >= 2.0) {
+    // ── XSLT 2.0 / 3.0：调用后端编译 ──
+    await runXsltAdvanced(sourceXmlStr, xsltRaw, outputEl);
+  } else {
+    // ── XSLT 1.0：浏览器原生处理 ──
+    runXsltNative(sourceXmlStr, xsltRaw, outputEl);
+  }
+}
+
+// 浏览器原生 XSLT 1.0
+function runXsltNative(sourceXmlStr, xsltRaw, outputEl) {
+  try {
+    const parser = new DOMParser();
+    const sourceDoc = parser.parseFromString(sourceXmlStr, 'text/xml');
+    const srcErr = sourceDoc.querySelector('parsererror');
+    if (srcErr) { setXsltStatus('error', '源 XML 解析错误：' + srcErr.textContent.slice(0,120)); return; }
+
+    const xsltDoc = parser.parseFromString(xsltRaw, 'text/xml');
+    const xslErr = xsltDoc.querySelector('parsererror');
+    if (xslErr) { setXsltStatus('error', 'XSLT 解析错误：' + xslErr.textContent.slice(0,120)); return; }
+
+    const processor = new XSLTProcessor();
+    processor.importStylesheet(xsltDoc);
+
+    const serializer = new XMLSerializer();
+    let result = '';
+
+    // 策略1：先尝试 transformToDocument
+    try {
+      const resultDoc = processor.transformToDocument(sourceDoc);
+      if (resultDoc && resultDoc.documentElement) {
+        result = serializer.serializeToString(resultDoc.documentElement);
+      }
+    } catch(_) { /* ignore, try fragment */ }
+
+    // 策略2：如果 Document 失败或为空，尝试 transformToFragment
+    if (!result.trim()) {
+      const ownerDoc = document.implementation.createDocument('', '', null);
+      const fragment = processor.transformToFragment(sourceDoc, ownerDoc);
+      if (fragment) {
+        for (const node of fragment.childNodes) {
+          if (node.nodeType === 3) result += node.nodeValue;
+          else result += serializer.serializeToString(node);
+        }
+      }
+    }
+
+    if (!result.trim()) {
+      setXsltStatus('error', '转换结果为空');
+      outputEl.innerHTML = `<div class="error-msg"><div>转换结果为空。请检查：<br>1. XSLT 的 match 表达式是否匹配源 XML 的节点路径<br>2. JSON 模式下源数据会被包裹在 &lt;root&gt; 标签中（除非顶层只有一个 key）</div></div>`;
+      return;
+    }
+
+    result = formatXmlString(result);
+
+    outputEl.innerHTML = '<span style="color:var(--string)">' + escapeHtml(result) + '</span>';
+    setXsltStatus('ok', '✓ 转换成功（XSLT 1.0）');
+    window._xsltOutputText = result;
+  } catch(e) {
+    setXsltStatus('error', '执行错误：' + e.message);
+    outputEl.innerHTML = `<div class="error-msg"><div>${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+// 后端编译 XSLT 2.0/3.0
+async function runXsltAdvanced(sourceXmlStr, xsltRaw, outputEl) {
+  setXsltStatus('loading', '⏳ 编译中，请稍候...');
+  outputEl.innerHTML = '<span style="color:var(--text3)">正在调用编译服务...</span>';
+
+  try {
+    const res = await fetch('/api/compile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ xsl: xsltRaw, source: sourceXmlStr })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      setXsltStatus('error', '✗ ' + (data.error || '后端错误'));
+      outputEl.innerHTML = `<div class="error-msg"><div>${escapeHtml(data.error || '未知错误')}</div></div>`;
+      return;
+    }
+
+    const result = formatXmlString(data.result);
+    outputEl.innerHTML = '<span style="color:var(--string)">' + escapeHtml(result) + '</span>';
+
+    // 显示耗时和缓存状态
+    let statusMsg = '✓ 转换成功（XSLT 2.0/3.0）';
+    if (data._meta) {
+      const { cached, totalMs } = data._meta;
+      statusMsg += cached
+        ? ` · ${totalMs}ms（缓存命中 ⚡）`
+        : ` · ${totalMs}ms`;
+    }
+    setXsltStatus('ok', statusMsg);
+    window._xsltOutputText = result;
+
+  } catch(e) {
+    // 网络失败时提示（本地调试时后端不可用）
+    setXsltStatus('error', '✗ 无法连接编译服务，请确认已部署到 Vercel');
+    outputEl.innerHTML = `<div class="error-msg"><div>无法连接到后端编译服务。<br>本地打开 HTML 文件时此功能不可用，请部署到 Vercel 后使用。</div></div>`;
+  }
+}
+
+// 简单 XML 格式化（缩进）
+function formatXmlString(xml) {
+  let formatted = '';
+  let indent = 0;
+  const lines = xml.replace(/>\s*</g, '>\n<').split('\n');
+  lines.forEach(line => {
+    line = line.trim();
+    if (!line) return;
+    if (/^<\//.test(line)) indent--;
+    formatted += '  '.repeat(Math.max(0, indent)) + line + '\n';
+    if (/^<[^?!\/][^>]*[^\/]>/.test(line) && !/<.*>.*<\/.*>/.test(line)) indent++;
+  });
+  return formatted.trim();
+}
+
+function setXsltStatus(type, msg) {
+  const el = document.getElementById('xsltStatus');
+  if (type === 'ok') el.style.color = 'var(--accent)';
+  else if (type === 'error') el.style.color = 'var(--error)';
+  else el.style.color = 'var(--text2)';
+  el.textContent = msg;
+}
+
+// 通用复制函数，兼容非 HTTPS 环境
+function copyToClipboard(text, successMsg = '已复制') {
+  if (!text) return false;
+  
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(() => showToast(successMsg));
+    return true;
+  } else {
+    // Fallback: 使用 textarea 模拟复制
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) showToast(successMsg);
+    } catch (err) {
+      console.error('无法复制', err);
+    }
+    document.body.removeChild(textArea);
+    return true;
+  }
+}
+
+function xsltCopySource() {
+  const v = document.getElementById('xsltSource').value;
+  copyToClipboard(v, '已复制数据源');
+}
+
+function xsltClearSource() {
+  document.getElementById('xsltSource').value = '';
+  updateCurrentTabData();
+  showToast('已清空数据源');
+}
+
+function xsltCopyTemplate() {
+  const v = document.getElementById('xsltTemplate').value;
+  if (!v) {
+    showToast('暂无模板内容');
+    return;
+  }
+  copyToClipboard(v, '已复制模板');
+}
+
+function xsltClearTemplate() {
+  document.getElementById('xsltTemplate').value = '';
+  updateCurrentTabData();
+  showToast('已清空模板');
+}
+
+function xsltCopyOutput() {
+  const text = window._xsltOutputText;
+  if (!text) {
+    showToast('暂无结果');
+    return;
+  }
+  copyToClipboard(text, '已复制结果');
+}
+
+function clearXslt() {
+  // 清空当前标签页的所有 XSLT 相关数据
+  document.getElementById('xsltSource').value = '';
+  document.getElementById('xsltTemplate').value = '';
+  document.getElementById('xsltOutput').innerHTML = '转换结果将显示在这里...';
+  document.getElementById('xsltOutput').style.color = 'var(--text3)';
+  document.getElementById('xsltStatus').textContent = '';
+  window._xsltOutputText = '';
+  updateCurrentTabData();
+  showToast('已清空所有 XSLT 数据');
+}
+
+function loadXsltSample() {
+  document.getElementById('xsltTemplate').value = `<?xml version="1.0" encoding="UTF-8"?>
+<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
+  <xsl:output method="xml" indent="yes" encoding="UTF-8"/>
+
+  <xsl:template match="/root/catalog | /catalog">
+    <bookstore>
+      <xsl:apply-templates select="book | book/item"/>
+    </bookstore>
+  </xsl:template>
+
+  <xsl:template match="book | item">
+    <item>
+      <name><xsl:value-of select="title"/></name>
+      <writer><xsl:value-of select="author"/></writer>
+      <cost><xsl:value-of select="price"/></cost>
+    </item>
+  </xsl:template>
+</xsl:stylesheet>`;
+}
+
+// 覆盖 switchTab，离开 xslt 时恢复主面板
+const _origSwitchTab = switchTab;
+switchTab = function(tab) {
+  _origSwitchTab(tab);
+  if (tab !== 'xslt') hideXsltPanel();
+};
+
+// ──────────────────────────── INIT ────────────────────────────
+updateLineNumbers();
+</script>
+</body>
+</html>

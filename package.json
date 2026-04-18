@@ -1,0 +1,14 @@
+{
+  "name": "json-tool",
+  "version": "1.0.0",
+  "description": "JSON 在线工具，支持 XSLT 1.0/2.0/3.0 转换",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.18.2",
+    "saxon-js": "^2.7.0",
+    "xslt3": "^2.7.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}
