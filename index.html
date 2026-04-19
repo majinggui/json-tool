@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
   :root {
     --bg: #0d0f12;
@@ -935,11 +936,12 @@
 <div id="barcodePanel" style="display:none; flex:1; flex-direction:column; overflow:hidden; position:relative; z-index:1;">
   <div class="panel" style="flex:1;">
     <div class="panel-header"><span>输入条码内容</span></div>
-    <textarea id="barcodeInput" placeholder="在此输入需要生成条码的内容（支持字母、数字、符号）..." oninput="updateCurrentTabData()"></textarea>
+    <textarea id="barcodeInput" placeholder="在此输入需要生成条码的内容..." oninput="updateCurrentTabData()"></textarea>
   </div>
   <div style="border-top:1px solid var(--border);">
     <div class="toolbar" style="border-bottom:none; padding:8px 16px; gap:8px;">
       <select id="barcodeFormat" style="background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:6px 10px; border-radius:6px; font-family:'Syne',sans-serif; font-size:12px; font-weight:600;">
+        <option value="QR">二维码</option>
         <option value="CODE128A">Code 128A</option>
         <option value="CODE128B">Code 128B</option>
         <option value="CODE128C">Code 128C</option>
@@ -949,14 +951,14 @@
         <option value="UPC">UPC</option>
         <option value="CODE39">Code 39</option>
         <option value="ITF14">ITF-14</option>
-        <option value="QR">二维码</option>
       </select>
       <button class="btn btn-primary" onclick="generateBarcode()">生成条码</button>
       <button class="btn btn-secondary" onclick="downloadBarcode()">下载条码</button>
       <button class="btn btn-secondary" onclick="clearBarcode()">清空</button>
     </div>
-    <div id="barcodeOutput" style="height:300px; overflow:auto; background:var(--bg); padding:20px; display:flex; align-items:center; justify-content:center;">
+    <div id="barcodeOutput" style="height:300px; overflow:auto; background:white; padding:20px; display:flex; align-items:center; justify-content:center;">
       <svg id="barcodeSvg"></svg>
+      <div id="qrcodeDiv" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -1582,6 +1584,8 @@ function generateBarcode() {
   const input = document.getElementById('barcodeInput').value.trim();
   const format = document.getElementById('barcodeFormat').value;
   const output = document.getElementById('barcodeOutput');
+  const svg = document.getElementById('barcodeSvg');
+  const qrDiv = document.getElementById('qrcodeDiv');
   
   if (!input) {
     showToast('请输入条码内容');
@@ -1589,65 +1593,101 @@ function generateBarcode() {
   }
   
   try {
-    const svg = document.getElementById('barcodeSvg');
     svg.innerHTML = '';
+    qrDiv.innerHTML = '';
+    qrDiv.style.display = 'none';
+    svg.style.display = 'block';
     
-    JsBarcode(svg, input, {
-      format: format,
-      width: 2,
-      height: 80,
-      displayValue: true,
-      fontSize: 14,
-      background: 'transparent',
-      lineColor: 'var(--text)',
-      margin: 10
-    });
+    if (format === 'QR') {
+      qrDiv.style.display = 'flex';
+      svg.style.display = 'none';
+      new QRCode(qrDiv, {
+        text: input,
+        width: 200,
+        height: 200,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+      window._barcodeType = 'qr';
+    } else {
+      JsBarcode(svg, input, {
+        format: format,
+        width: 2,
+        height: 80,
+        displayValue: true,
+        fontSize: 14,
+        background: 'transparent',
+        lineColor: '#000000',
+        margin: 10
+      });
+      window._barcodeType = 'barcode';
+    }
     
     window._barcodeData = input;
     window._barcodeFormat = format;
-    showToast('条码生成成功');
+    showToast('生成成功');
   } catch (e) {
-    console.error('条码生成错误:', e);
-    output.innerHTML = `<div style="color:var(--error); text-align:center; padding:40px;">条码生成失败: ${e.message || '请检查输入内容是否有效'}</div>`;
+    console.error('生成错误:', e);
+    output.innerHTML = `<div style="color:var(--error); text-align:center; padding:40px;">生成失败: ${e.message || '请检查输入内容是否有效'}</div>`;
   }
   updateCurrentTabData();
 }
 
 function downloadBarcode() {
-  const svg = document.getElementById('barcodeSvg');
-  if (!svg || !svg.innerHTML) {
-    showToast('请先生成条码');
-    return;
-  }
+  const format = document.getElementById('barcodeFormat').value;
   
-  const svgData = new XMLSerializer().serializeToString(svg);
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  const img = new Image();
-  
-  img.onload = function() {
-    canvas.width = img.width * 2;
-    canvas.height = img.height * 2;
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  if (format === 'QR') {
+    const qrDiv = document.getElementById('qrcodeDiv');
+    const img = qrDiv.querySelector('img');
+    if (img) {
+      const a = document.createElement('a');
+      a.href = img.src;
+      a.download = `qrcode_${window._barcodeData || Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('二维码下载成功');
+    } else {
+      showToast('请先生成二维码');
+    }
+  } else {
+    const svg = document.getElementById('barcodeSvg');
+    if (!svg || !svg.innerHTML) {
+      showToast('请先生成条码');
+      return;
+    }
     
-    const pngUrl = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = pngUrl;
-    a.download = `barcode_${window._barcodeData || Date.now()}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    showToast('条码下载成功');
-  };
-  
-  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.onload = function() {
+      canvas.width = img.width * 2;
+      canvas.height = img.height * 2;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      const pngUrl = canvas.toDataURL('image/png');
+      const a = document.createElement('a');
+      a.href = pngUrl;
+      a.download = `barcode_${window._barcodeData || Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      showToast('条码下载成功');
+    };
+    
+    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+  }
 }
 
 function clearBarcode() {
   document.getElementById('barcodeInput').value = '';
   document.getElementById('barcodeSvg').innerHTML = '';
+  document.getElementById('qrcodeDiv').innerHTML = '';
   window._barcodeData = null;
   window._barcodeFormat = null;
   updateCurrentTabData();
