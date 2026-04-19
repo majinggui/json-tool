@@ -229,6 +229,12 @@
 
   .logo span { color: var(--accent); }
 
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
   nav {
     display: flex; gap: 4px;
   }
@@ -459,7 +465,7 @@
   }
 
   textarea::placeholder { color: var(--text3); }
-  textarea:focus { background: #0e1116; }
+  textarea:focus { background: var(--surface); }
 
   textarea.error-state {
     background: linear-gradient(to bottom, var(--error-bg), var(--bg) 80px);
@@ -663,15 +669,7 @@
     <div class="logo-icon">{ }</div>
     JSON<span>工具</span>
   </a>
-  <nav>
-    <button class="active" onclick="switchTab('format')">格式化</button>
-    <button onclick="switchTab('compress')">压缩</button>
-    <button onclick="switchTab('validate')">校验</button>
-    <button onclick="switchTab('convert')">转义</button>
-    <button onclick="switchTab('xslt')">XSLT</button>
-    <button onclick="switchTab('diff')">比对</button>
-    <button onclick="switchTab('base64')">Base64</button>
-  </nav>
+  <div class="header-right">
   <div class="theme-switcher" id="themeSwitcher">
     <button class="theme-btn active" id="themeSystem" onclick="setTheme('system')" title="跟随系统">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="10" rx="2"/><path d="M8 12a4 4 0 000-8"/></svg>
@@ -682,6 +680,16 @@
     <button class="theme-btn" id="themeDark" onclick="setTheme('dark')" title="深色">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8.5A5.5 5.5 0 114.5 4a4 4 0 008.5 4.5z"/></svg>
     </button>
+  </div>
+  <nav>
+    <button class="active" onclick="switchTab('format')">格式化</button>
+    <button onclick="switchTab('compress')">压缩</button>
+    <button onclick="switchTab('validate')">校验</button>
+    <button onclick="switchTab('convert')">转义</button>
+    <button onclick="switchTab('xslt')">XSLT</button>
+    <button onclick="switchTab('diff')">比对</button>
+    <button onclick="switchTab('base64')">Base64</button>
+  </nav>
   </div>
 </header>
 
