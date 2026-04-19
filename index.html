@@ -6,6 +6,7 @@
 <title>JSON 在线工具</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
 <style>
   :root {
     --bg: #0d0f12;
@@ -689,6 +690,7 @@
     <button onclick="switchTab('xslt')">XSLT</button>
     <button onclick="switchTab('diff')">比对</button>
     <button onclick="switchTab('base64')">Base64</button>
+    <button onclick="switchTab('barcode')">条码</button>
   </nav>
   </div>
 </header>
@@ -929,6 +931,36 @@
   </div>
 </div>
 
+<!-- BARCODE PANEL -->
+<div id="barcodePanel" style="display:none; flex:1; flex-direction:column; overflow:hidden; position:relative; z-index:1;">
+  <div class="panel" style="flex:1;">
+    <div class="panel-header"><span>输入条码内容</span></div>
+    <textarea id="barcodeInput" placeholder="在此输入需要生成条码的内容（支持字母、数字、符号）..." oninput="updateCurrentTabData()"></textarea>
+  </div>
+  <div style="border-top:1px solid var(--border);">
+    <div class="toolbar" style="border-bottom:none; padding:8px 16px; gap:8px;">
+      <select id="barcodeFormat" style="background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:6px 10px; border-radius:6px; font-family:'Syne',sans-serif; font-size:12px; font-weight:600;">
+        <option value="CODE128A">Code 128A</option>
+        <option value="CODE128B">Code 128B</option>
+        <option value="CODE128C">Code 128C</option>
+        <option value="CODE128">Code 128 (自动)</option>
+        <option value="EAN13">EAN-13</option>
+        <option value="EAN8">EAN-8</option>
+        <option value="UPC">UPC</option>
+        <option value="CODE39">Code 39</option>
+        <option value="ITF14">ITF-14</option>
+        <option value="QR">二维码</option>
+      </select>
+      <button class="btn btn-primary" onclick="generateBarcode()">生成条码</button>
+      <button class="btn btn-secondary" onclick="downloadBarcode()">下载条码</button>
+      <button class="btn btn-secondary" onclick="clearBarcode()">清空</button>
+    </div>
+    <div id="barcodeOutput" style="height:300px; overflow:auto; background:var(--bg); padding:20px; display:flex; align-items:center; justify-content:center;">
+      <svg id="barcodeSvg"></svg>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast">✓ 已复制</div>
 
 <script>
@@ -958,6 +990,7 @@ function initTabs() {
       diffLeft: '',
       diffRight: '',
       base64Input: '',
+      barcodeInput: '',
       activeFunction: 'format'
     };
     tabs = [initialTab];
@@ -1063,6 +1096,7 @@ function updateCurrentTabData() {
     tab.diffLeft = document.getElementById('diffLeft').value;
     tab.diffRight = document.getElementById('diffRight').value;
     tab.base64Input = document.getElementById('base64Input').value;
+    tab.barcodeInput = document.getElementById('barcodeInput').value;
     tab.activeFunction = currentTab;
     saveTabs();
   }
@@ -1077,6 +1111,7 @@ function loadTabContent(id) {
     document.getElementById('diffLeft').value = tab.diffLeft || '';
     document.getElementById('diffRight').value = tab.diffRight || '';
     document.getElementById('base64Input').value = tab.base64Input || '';
+    document.getElementById('barcodeInput').value = tab.barcodeInput || '';
     setXsltSourceMode(tab.xsltMode || 'json');
     
     // 恢复功能切换状态
@@ -1492,7 +1527,7 @@ function switchView(view) {
 function switchTab(tab) {
   currentTab = tab;
   document.querySelectorAll('nav button').forEach((b,i) => {
-    b.classList.toggle('active', ['format','compress','validate','convert','xslt','diff','base64'][i] === tab);
+    b.classList.toggle('active', ['format','compress','validate','convert','xslt','diff','base64','barcode'][i] === tab);
   });
   
   // 隐藏所有特定面板，显示主面板（如果需要）
@@ -1504,6 +1539,8 @@ function switchTab(tab) {
     showDiffPanel();
   } else if (tab === 'base64') {
     showBase64Panel();
+  } else if (tab === 'barcode') {
+    showBarcodePanel();
   } else {
     document.getElementById('mainArea').style.display = 'flex';
   }
@@ -1516,6 +1553,7 @@ function hideAllPanels() {
   document.getElementById('xsltPanel').style.display = 'none';
   document.getElementById('diffPanel').style.display = 'none';
   document.getElementById('base64Panel').style.display = 'none';
+  document.getElementById('barcodePanel').style.display = 'none';
 }
 
 function showXsltPanel() {
@@ -1531,6 +1569,89 @@ function showDiffPanel() {
 function showBase64Panel() {
   hideAllPanels();
   document.getElementById('base64Panel').style.display = 'flex';
+}
+
+function showBarcodePanel() {
+  hideAllPanels();
+  document.getElementById('barcodePanel').style.display = 'flex';
+}
+
+// ──────────────────────────── BARCODE LOGIC ────────────────────────────
+
+function generateBarcode() {
+  const input = document.getElementById('barcodeInput').value.trim();
+  const format = document.getElementById('barcodeFormat').value;
+  const output = document.getElementById('barcodeOutput');
+  
+  if (!input) {
+    showToast('请输入条码内容');
+    return;
+  }
+  
+  try {
+    const svg = document.getElementById('barcodeSvg');
+    svg.innerHTML = '';
+    
+    JsBarcode(svg, input, {
+      format: format,
+      width: 2,
+      height: 80,
+      displayValue: true,
+      fontSize: 14,
+      background: 'transparent',
+      lineColor: 'var(--text)',
+      margin: 10
+    });
+    
+    window._barcodeData = input;
+    window._barcodeFormat = format;
+    showToast('条码生成成功');
+  } catch (e) {
+    console.error('条码生成错误:', e);
+    output.innerHTML = `<div style="color:var(--error); text-align:center; padding:40px;">条码生成失败: ${e.message || '请检查输入内容是否有效'}</div>`;
+  }
+  updateCurrentTabData();
+}
+
+function downloadBarcode() {
+  const svg = document.getElementById('barcodeSvg');
+  if (!svg || !svg.innerHTML) {
+    showToast('请先生成条码');
+    return;
+  }
+  
+  const svgData = new XMLSerializer().serializeToString(svg);
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  
+  img.onload = function() {
+    canvas.width = img.width * 2;
+    canvas.height = img.height * 2;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    
+    const pngUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = pngUrl;
+    a.download = `barcode_${window._barcodeData || Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    showToast('条码下载成功');
+  };
+  
+  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+}
+
+function clearBarcode() {
+  document.getElementById('barcodeInput').value = '';
+  document.getElementById('barcodeSvg').innerHTML = '';
+  window._barcodeData = null;
+  window._barcodeFormat = null;
+  updateCurrentTabData();
+  showToast('已清空');
 }
 
 // ──────────────────────────── DIFF LOGIC ────────────────────────────
