@@ -484,6 +484,29 @@
     line-height: 1.75;
   }
 
+  .tree-value {
+    cursor: pointer;
+    padding: 1px 4px;
+    border-radius: 3px;
+    transition: background 0.15s;
+  }
+  .tree-value:hover {
+    background: var(--accent-glow);
+  }
+
+  .tree-edit-input {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    line-height: 1.75;
+    padding: 1px 4px;
+    border: 1px solid var(--accent);
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--text);
+    outline: none;
+    min-width: 50px;
+  }
+
   /* JSON highlighting */
   .json-string { color: var(--string); }
   .json-number { color: var(--number); }
@@ -1257,10 +1280,181 @@ function renderOutput() {
   if (!parsedData && parsedData !== 0 && parsedData !== '' && parsedData !== false && parsedData !== null) return;
   const wrap = document.getElementById('jsonOutput');
   if (currentView === 'tree') {
-    wrap.innerHTML = renderTree(parsedData, 0);
+    wrap.innerHTML = renderEditableTree(parsedData, '');
     attachToggleHandlers();
+    attachEditHandlers();
   } else {
     wrap.innerHTML = syntaxHighlight(outputText);
+  }
+}
+
+function getValueType(value) {
+  if (value === null) return 'null';
+  if (typeof value === 'boolean') return 'boolean';
+  if (typeof value === 'number') return 'number';
+  if (typeof value === 'string') return 'string';
+  if (Array.isArray(value)) return 'array';
+  return 'object';
+}
+
+function renderEditableTree(value, path) {
+  const comma = '';
+  let html = '<div class="tree-node">';
+  let prefix = '';
+  
+  if (path) {
+    const keyParts = path.split('.');
+    const key = keyParts[keyParts.length - 1];
+    const type = getValueType(value);
+    prefix = `<span class="json-key">"${escapeHtml(key)}"</span><span class="json-punct">: </span>`;
+  }
+
+  const type = getValueType(value);
+
+  if (type === 'null') {
+    html += prefix + `<span class="json-null tree-value" data-path="${path}" data-type="null">null</span>`;
+  } else if (type === 'boolean') {
+    html += prefix + `<span class="json-boolean tree-value" data-path="${path}" data-type="boolean">${value}</span>`;
+  } else if (type === 'number') {
+    html += prefix + `<span class="json-number tree-value" data-path="${path}" data-type="number">${value}</span>`;
+  } else if (type === 'string') {
+    html += prefix + `<span class="json-string tree-value" data-path="${path}" data-type="string">"${escapeHtml(value)}"</span>`;
+  } else if (type === 'array') {
+    const len = value.length;
+    if (len === 0) {
+      html += prefix + `<span class="json-brace">[]</span>`;
+    } else {
+      const id = 'node-' + Math.random().toString(36).slice(2);
+      html += prefix;
+      html += `<span class="tree-toggle expanded" data-target="${id}"><svg viewBox="0 0 10 10" fill="currentColor"><path d="M1 3l4 4 4-4"/></svg></span>`;
+      html += `<span class="json-brace">[</span>`;
+      html += `<span class="tree-preview" style="display:none"> … ${len} 项 ]</span>`;
+      html += `<div class="tree-children" id="${id}" style="padding-left:20px">`;
+      value.forEach((item, i) => {
+        html += renderEditableTree(item, path ? `${path}.${i}` : `${i}`);
+      });
+      html += `</div>`;
+      html += `<span class="json-brace">]</span>`;
+    }
+  } else if (type === 'object') {
+    const keys = Object.keys(value);
+    if (keys.length === 0) {
+      html += prefix + `<span class="json-brace">{}</span>`;
+    } else {
+      const id = 'node-' + Math.random().toString(36).slice(2);
+      html += prefix;
+      html += `<span class="tree-toggle expanded" data-target="${id}"><svg viewBox="0 0 10 10" fill="currentColor"><path d="M1 3l4 4 4-4"/></svg></span>`;
+      html += `<span class="json-brace">{</span>`;
+      html += `<span class="tree-preview" style="display:none"> … ${keys.length} 个属性 }</span>`;
+      html += `<div class="tree-children" id="${id}" style="padding-left:20px">`;
+      keys.forEach((k, i) => {
+        html += renderEditableTree(value[k], path ? `${path}.${k}` : k);
+      });
+      html += `</div>`;
+      html += `<span class="json-brace">}</span>`;
+    }
+  }
+  html += '</div>';
+  return html;
+}
+
+function attachEditHandlers() {
+  const wrap = document.getElementById('jsonOutput');
+  wrap.oncontextmenu = function(e) {
+    const target = e.target.closest('.tree-value');
+    if (target) {
+      e.preventDefault();
+      startEdit(target);
+    }
+  };
+}
+
+function startEdit(element) {
+  const path = element.getAttribute('data-path');
+  const type = element.getAttribute('data-type');
+  let currentValue = element.textContent;
+  
+  if (type === 'string') {
+    currentValue = currentValue.slice(1, -1);
+  }
+  
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tree-edit-input';
+  input.value = currentValue;
+  
+  element.replaceWith(input);
+  input.focus();
+  input.select();
+  
+  const finishEdit = () => {
+    const newValue = input.value;
+    if (updateParsedData(path, type, newValue)) {
+      renderOutput();
+      syncToInput();
+      showToast('已更新');
+    } else {
+      input.style.borderColor = 'var(--error)';
+    }
+  };
+  
+  input.addEventListener('blur', finishEdit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      input.blur();
+    } else if (e.key === 'Escape') {
+      renderOutput();
+    }
+  });
+}
+
+function updateParsedData(path, type, newValue) {
+  try {
+    const parts = path.split('.');
+    let obj = parsedData;
+    
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      if (part.match(/^\d+$/)) {
+        obj = obj[parseInt(part)];
+      } else {
+        obj = obj[part];
+      }
+    }
+    
+    const lastPart = parts[parts.length - 1];
+    const key = lastPart.match(/^\d+$/) ? parseInt(lastPart) : lastPart;
+    
+    if (type === 'null') {
+      obj[key] = null;
+    } else if (type === 'boolean') {
+      if (newValue === 'true') obj[key] = true;
+      else if (newValue === 'false') obj[key] = false;
+      else return false;
+    } else if (type === 'number') {
+      const num = parseFloat(newValue);
+      if (isNaN(num)) return false;
+      obj[key] = num;
+    } else if (type === 'string') {
+      obj[key] = newValue;
+    }
+    
+    return true;
+  } catch (e) {
+    console.error('Update error:', e);
+    return false;
+  }
+}
+
+function syncToInput() {
+  try {
+    const indent = getIndent();
+    outputText = JSON.stringify(parsedData, null, indent);
+    document.getElementById('jsonInput').value = outputText;
+    updateLineNumbers();
+    updateStats(parsedData, outputText);
+  } catch (e) {
+    console.error('Sync error:', e);
   }
 }
 
