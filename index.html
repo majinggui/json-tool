@@ -8,6 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.1.0/diff.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root {
     --bg: #0d0f12;
@@ -958,11 +959,11 @@
 <!-- BARCODE PANEL -->
 <div id="barcodePanel" style="display:none; flex:1; flex-direction:column; overflow:hidden; position:relative; z-index:1;">
   <div class="panel" style="flex:1;">
-    <div class="panel-header"><span>输入条码内容</span></div>
-    <textarea id="barcodeInput" placeholder="在此输入需要生成条码的内容..." oninput="updateCurrentTabData()"></textarea>
+    <div class="panel-header"><span>输入条码内容</span><button id="batchModeToggle" class="btn btn-secondary" onclick="toggleBatchMode()" style="padding:4px 12px; font-size:11px;">批量模式</button></div>
+    <textarea id="barcodeInput" placeholder="在此输入需要生成条码的内容...(批量模式每行一个)" oninput="updateCurrentTabData()"></textarea>
   </div>
   <div style="border-top:1px solid var(--border);">
-    <div class="toolbar" style="border-bottom:none; padding:8px 16px; gap:8px;">
+    <div class="toolbar" style="border-bottom:none; padding:8px 16px; gap:8px; flex-wrap:wrap;">
       <select id="barcodeFormat" style="background:var(--surface2); border:1px solid var(--border2); color:var(--text); padding:6px 10px; border-radius:6px; font-family:'Syne',sans-serif; font-size:12px; font-weight:600;">
         <option value="QR">二维码</option>
         <option value="CODE128A">Code 128A</option>
@@ -977,7 +978,13 @@
       </select>
       <button class="btn btn-primary" onclick="generateBarcode()">生成条码</button>
       <button class="btn btn-secondary" onclick="downloadBarcode()">下载条码</button>
+      <button id="batchDownloadBtn" class="btn btn-secondary" onclick="downloadAllBarcodes()" style="display:none;">批量打包下载</button>
       <button class="btn btn-secondary" onclick="clearBarcode()">清空</button>
+      <div id="batchPagination" style="display:none; margin-left:auto; gap:8px; align-items:center;">
+        <button class="btn btn-secondary" onclick="prevBarcodePage()" style="padding:4px 8px;">&lt; 上一页</button>
+        <span id="barcodePageInfo" style="color:var(--text2); font-size:12px;">1 / 1</span>
+        <button class="btn btn-secondary" onclick="nextBarcodePage()" style="padding:4px 8px;">下一页 &gt;</button>
+      </div>
     </div>
     <div id="barcodeOutput" style="height:300px; overflow:auto; background:white; padding:20px; display:flex; align-items:center; justify-content:center;">
       <svg id="barcodeSvg"></svg>
@@ -1773,6 +1780,31 @@ function showBarcodePanel() {
 }
 
 // ──────────────────────────── BARCODE LOGIC ────────────────────────────
+let _batchBarcodeData = [];
+let _batchCurrentIndex = 0;
+let _isBatchMode = false;
+
+function toggleBatchMode() {
+  _isBatchMode = !_isBatchMode;
+  const btn = document.getElementById('batchModeToggle');
+  const batchDownloadBtn = document.getElementById('batchDownloadBtn');
+  const batchPagination = document.getElementById('batchPagination');
+  if (_isBatchMode) {
+    btn.textContent = '退出批量';
+    btn.style.background = 'var(--accent)';
+    btn.style.color = 'var(--bg)';
+    batchDownloadBtn.style.display = 'inline-block';
+    batchPagination.style.display = 'flex';
+  } else {
+    btn.textContent = '批量模式';
+    btn.style.background = '';
+    btn.style.color = '';
+    batchDownloadBtn.style.display = 'none';
+    batchPagination.style.display = 'none';
+    _batchBarcodeData = [];
+    _batchCurrentIndex = 0;
+  }
+}
 
 function generateBarcode() {
   const input = document.getElementById('barcodeInput').value.trim();
@@ -1780,32 +1812,95 @@ function generateBarcode() {
   const output = document.getElementById('barcodeOutput');
   const svg = document.getElementById('barcodeSvg');
   const qrDiv = document.getElementById('qrcodeDiv');
-  
+
   if (!input) {
     showToast('请输入条码内容');
     return;
   }
-  
+
   try {
     svg.innerHTML = '';
     qrDiv.innerHTML = '';
     qrDiv.style.display = 'none';
     svg.style.display = 'block';
-    
+
+    if (_isBatchMode) {
+      const lines = input.split('\n').map(l => l.trim()).filter(l => l);
+      _batchBarcodeData = lines;
+      _batchCurrentIndex = 0;
+      if (lines.length > 0) {
+        showBarcodePage(0);
+        showToast(`已加载 ${lines.length} 个条码`);
+      } else {
+        showToast('请输入有效的条码内容');
+      }
+    } else {
+      if (format === 'QR') {
+        qrDiv.style.display = 'flex';
+        svg.style.display = 'none';
+        new QRCode(qrDiv, {
+          text: input,
+          width: 200,
+          height: 200,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+        window._barcodeType = 'qr';
+      } else {
+        JsBarcode(svg, input, {
+          format: format,
+          width: 2,
+          height: 80,
+          displayValue: true,
+          fontSize: 14,
+          background: 'transparent',
+          lineColor: '#000000',
+          margin: 10
+        });
+        window._barcodeType = 'barcode';
+      }
+      window._barcodeData = input;
+      window._barcodeFormat = format;
+      showToast('生成成功');
+    }
+  } catch (e) {
+    console.error('生成错误:', e);
+    output.innerHTML = `<div style="color:var(--error); text-align:center; padding:40px;">生成失败: ${e.message || '请检查输入内容是否有效'}</div>`;
+  }
+  updateCurrentTabData();
+}
+
+function showBarcodePage(index) {
+  if (_batchBarcodeData.length === 0) return;
+  if (index < 0) index = 0;
+  if (index >= _batchBarcodeData.length) index = _batchBarcodeData.length - 1;
+  _batchCurrentIndex = index;
+
+  const format = document.getElementById('barcodeFormat').value;
+  const content = _batchBarcodeData[index];
+  const svg = document.getElementById('barcodeSvg');
+  const qrDiv = document.getElementById('qrcodeDiv');
+
+  svg.innerHTML = '';
+  qrDiv.innerHTML = '';
+  qrDiv.style.display = 'none';
+  svg.style.display = 'block';
+
+  try {
     if (format === 'QR') {
       qrDiv.style.display = 'flex';
       svg.style.display = 'none';
       new QRCode(qrDiv, {
-        text: input,
+        text: content,
         width: 200,
         height: 200,
         colorDark: '#000000',
         colorLight: '#ffffff',
         correctLevel: QRCode.CorrectLevel.M
       });
-      window._barcodeType = 'qr';
     } else {
-      JsBarcode(svg, input, {
+      JsBarcode(svg, content, {
         format: format,
         width: 2,
         height: 80,
@@ -1815,17 +1910,23 @@ function generateBarcode() {
         lineColor: '#000000',
         margin: 10
       });
-      window._barcodeType = 'barcode';
     }
-    
-    window._barcodeData = input;
-    window._barcodeFormat = format;
-    showToast('生成成功');
   } catch (e) {
-    console.error('生成错误:', e);
-    output.innerHTML = `<div style="color:var(--error); text-align:center; padding:40px;">生成失败: ${e.message || '请检查输入内容是否有效'}</div>`;
+    const output = document.getElementById('barcodeOutput');
+    output.innerHTML = `<div style="color:var(--error); text-align:center; padding:40px;">生成失败: ${e.message}</div>`;
   }
-  updateCurrentTabData();
+
+  document.getElementById('barcodePageInfo').textContent = `${index + 1} / ${_batchBarcodeData.length}`;
+  window._barcodeData = content;
+  window._barcodeFormat = format;
+}
+
+function prevBarcodePage() {
+  showBarcodePage(_batchCurrentIndex - 1);
+}
+
+function nextBarcodePage() {
+  showBarcodePage(_batchCurrentIndex + 1);
 }
 
 function downloadBarcode() {
@@ -1884,8 +1985,108 @@ function clearBarcode() {
   document.getElementById('qrcodeDiv').innerHTML = '';
   window._barcodeData = null;
   window._barcodeFormat = null;
+  _batchBarcodeData = [];
+  _batchCurrentIndex = 0;
+  document.getElementById('barcodePageInfo').textContent = '1 / 1';
   updateCurrentTabData();
   showToast('已清空');
+}
+
+async function downloadAllBarcodes() {
+  if (_batchBarcodeData.length === 0) {
+    showToast('没有可下载的条码');
+    return;
+  }
+  const format = document.getElementById('barcodeFormat').value;
+  const zip = new JSZip();
+  const tempSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  tempSvg.setAttribute('width', '400');
+  tempSvg.setAttribute('height', '120');
+
+  for (let i = 0; i < _batchBarcodeData.length; i++) {
+    const content = _batchBarcodeData[i];
+    try {
+      let pngData;
+      if (format === 'QR') {
+        const tempDiv = document.createElement('div');
+        new QRCode(tempDiv, {
+          text: content,
+          width: 200,
+          height: 200,
+          colorDark: '#000000',
+          colorLight: '#ffffff',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+        await new Promise(r => setTimeout(r, 50));
+        const img = tempDiv.querySelector('img');
+        if (img) {
+          const response = await fetch(img.src);
+          pngData = await response.blob();
+        }
+      } else {
+        tempSvg.innerHTML = '';
+        JsBarcode(tempSvg, content, {
+          format: format,
+          width: 2,
+          height: 80,
+          displayValue: true,
+          fontSize: 14,
+          background: 'transparent',
+          lineColor: '#000000',
+          margin: 10
+        });
+        const svgData = new XMLSerializer().serializeToString(tempSvg);
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        });
+        canvas.width = img.width * 2;
+        canvas.height = img.height * 2;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        pngData = base64;
+      }
+
+      const filename = `${format}_${content.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '_')}_${i + 1}`;
+      if (pngData) {
+        if (format === 'QR') {
+          const arrayBuffer = await pngData.arrayBuffer();
+          zip.file(`${filename}.png`, arrayBuffer);
+        } else {
+          zip.file(`${filename}.png`, base64ToBlob(pngData, 'image/png'));
+        }
+      }
+    } catch (e) {
+      console.warn(`第 ${i + 1} 个条码生成失败:`, e);
+    }
+  }
+
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `barcodes_${Date.now()}.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+  showToast('批量打包下载成功');
+}
+
+function base64ToBlob(base64, mimeType) {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
 }
 
 // ──────────────────────────── DIFF LOGIC ────────────────────────────
